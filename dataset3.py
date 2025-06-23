@@ -11,7 +11,7 @@ plt.figure(figsize=(10,6))
 for i, fname in enumerate(filenames):
     path = os.path.join(folder, fname)
     df = pd.read_csv(path, delimiter=';')
-    plt.plot(df['step'], df['queue'], label=labels[i])
+    plt.plot(df['step'], df['waitingTime'], label=labels[i])
 
 plt.xlabel('step (bước mô phỏng)')
 plt.ylabel('queue (độ dài hàng đợi)')
