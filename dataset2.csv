@@ -1,4 +1,4 @@
-step;edge;lane_id;queue;waitingTime;avgSpeed;density;outflow;greenTime;redTime;cycleTime
+step(s);edge;lane_id;queue(xe);waitingTime(s);avgSpeed(m/s);density(m);outflow(xe);greenTime(s);redTime(s);cycleTime(s)
 0;E3-2;E3-2_0;1;0.0;0,000000;10,000000;1;84.0;90.0;90.0
 0;E3-2;E3-2_1;0;0.0;13,890000;0,000000;0;84.0;90.0;90.0
 30;E3-2;E3-2_0;1;0.0;8,180901;40,000000;4;84.0;90.0;90.0
