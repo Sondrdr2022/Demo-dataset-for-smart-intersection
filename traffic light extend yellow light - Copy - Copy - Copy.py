@@ -30,12 +30,15 @@ SPEED_THRESHOLD_HIGH = 15
 SPEED_THRESHOLD_MEDIUM = 8   
 DECISION_ZONE_MULTIPLIER = 1.3
 
-# CẤU HÌNH MỚI CHO RẼ TRÁI
-LEFT_TURN_PRIORITY_MULTIPLIER = 2.0    # Hệ số ưu tiên cho rẽ trái
-LEFT_TURN_MIN_VEHICLES = 2              # Số xe tối thiểu để kích hoạt pha rẽ trái
-LEFT_TURN_MAX_WAIT = 60                 # Thời gian chờ tối đa cho xe rẽ trái (giây)
-LEFT_TURN_PHASE_DURATION = 25           # Thời gian pha rẽ trái tối thiểu
-PROTECTED_LEFT_TURN_ENABLED = True      # Bật pha rẽ trái bảo vệ
+# CẤU HÌNH MỚI CHO RẼ TRÁI - ĐÃ ĐIỀU CHỈNH
+LEFT_TURN_PRIORITY_MULTIPLIER = 5.0    # Tăng ưu tiên cho rẽ trái
+LEFT_TURN_MIN_VEHICLES = 1             # Giảm xuống 1 để kích hoạt ngay cả khi chỉ có 1 xe
+LEFT_TURN_MAX_WAIT = 45                # Giảm thời gian chờ tối đa
+LEFT_TURN_PHASE_DURATION = 35          # Tăng thời lượng pha rẽ trái
+PROTECTED_LEFT_TURN_ENABLED = True     # Giữ nguyên
+LEFT_TURN_DETECTION_DISTANCE = 150     # Thêm mới - khoảng cách phát hiện xe rẽ trái
+LEFT_TURN_PHASE_EXTENSION = 5          # Thêm mới - mở rộng thời gian nếu còn xe
+MAX_LEFT_TURN_VEHICLES_PER_CYCLE = 5   # Thêm mới - số lượng xe tối đa trên mỗi chu kỳ
 
 last_phase_change_step = -MIN_PHASE_GAP
 
@@ -46,7 +49,7 @@ def start_sumo():
     traci.start(sumoCmd)
 
 def get_lane_metrics(detector_id):
-    """Lấy các chỉ số cho làn đường cụ thể - Có cải tiến cho rẽ trái"""
+    """Lấy các chỉ số cho làn đường cụ thể - Cải tiến cho phát hiện rẽ trái tốt hơn"""
     metrics = {}
     
     try:
@@ -71,40 +74,63 @@ def get_lane_metrics(detector_id):
         # Số xe dừng
         metrics['stopped_vehicles'] = len([v for v in vehicles if traci.vehicle.getSpeed(v) < 1.0]) if vehicles else 0
         
-        # MỚI: Phát hiện xe rẽ trái
-        left_turn_vehicles = 0
+        # CẢI TIẾN: Phát hiện xe rẽ trái - cải thiện thuật toán phát hiện
+        left_turn_vehicles = []
         left_turn_waiting_time = 0
         
         for vehicle in vehicles:
             try:
-                # Kiểm tra tín hiệu rẽ của xe
+                # Sử dụng nhiều phương pháp kết hợp để phát hiện xe rẽ trái
+                is_left_turn = False
+                
+                # 1. Kiểm tra tín hiệu rẽ
                 signals = traci.vehicle.getSignals(vehicle)
-                # Bit 2 = rẽ trái, Bit 3 = rẽ phải trong SUMO
                 if signals & 4:  # Bit 2 được bật (rẽ trái)
-                    left_turn_vehicles += 1
-                    left_turn_waiting_time = max(left_turn_waiting_time, traci.vehicle.getWaitingTime(vehicle))
-                # Kiểm tra thêm bằng route nếu signals không đủ
-                elif vehicle in vehicles:
-                    try:
-                        route = traci.vehicle.getRoute(vehicle)
-                        current_edge = traci.vehicle.getRoadID(vehicle)
-                        if len(route) > 1:
-                            current_idx = route.index(current_edge) if current_edge in route else -1
-                            if current_idx >= 0 and current_idx < len(route) - 1:
-                                next_edge = route[current_idx + 1]
-                                # Phân tích hướng dựa trên tên edge
-                                if is_left_turn_movement(current_edge, next_edge):
-                                    left_turn_vehicles += 1
-                                    left_turn_waiting_time = max(left_turn_waiting_time, traci.vehicle.getWaitingTime(vehicle))
-                    except:
-                        pass
+                    is_left_turn = True
+                
+                # 2. Kiểm tra bằng route
+                if not is_left_turn:
+                    route = traci.vehicle.getRoute(vehicle)
+                    current_edge = traci.vehicle.getRoadID(vehicle)
+                    if current_edge in route:
+                        current_idx = route.index(current_edge)
+                        if current_idx < len(route) - 1:
+                            next_edge = route[current_idx + 1]
+                            if is_left_turn_movement(current_edge, next_edge):
+                                is_left_turn = True
+                
+                # 3. Kiểm tra thông qua ID lane nếu có quy ước đặt tên
+                if not is_left_turn:
+                    lane_id = traci.vehicle.getLaneID(vehicle)
+                    if "_LEFT" in lane_id.upper() or "_LT" in lane_id.upper() or lane_id.endswith("_2"):
+                        is_left_turn = True
+                
+                # 4. Kiểm tra vị trí xe và hướng di chuyển kế tiếp
+                if not is_left_turn and detector_id:
+                    detector_lane = detector_id.split("-")[0]
+                    # Thêm các logic phát hiện dựa trên đặc điểm cụ thể của mô phỏng
+                    if detector_lane == "E1" and "E4" in route:
+                        is_left_turn = True
+                    elif detector_lane == "E5" and "E2" in route:
+                        is_left_turn = True
+                    elif detector_lane == "-E2" and "-E5" in route:
+                        is_left_turn = True
+                    elif detector_lane == "-E4" and "-E1" in route:
+                        is_left_turn = True
+                
+                if is_left_turn:
+                    left_turn_vehicles.append(vehicle)
+                    wait_time = traci.vehicle.getWaitingTime(vehicle)
+                    left_turn_waiting_time = max(left_turn_waiting_time, wait_time)
             except:
                 continue
         
-        metrics['left_turn_vehicles'] = left_turn_vehicles
+        metrics['left_turn_vehicles'] = len(left_turn_vehicles)
         metrics['left_turn_waiting_time'] = left_turn_waiting_time
+        metrics['left_turn_vehicle_ids'] = left_turn_vehicles  # Lưu ID các xe rẽ trái
         
     except Exception as e:
+        print(f"Lỗi khi lấy chỉ số từ detector {detector_id}: {str(e)}")
         # Trả về giá trị mặc định nếu có lỗi
         metrics = {
             'queue_length': 0,
@@ -114,14 +140,15 @@ def get_lane_metrics(detector_id):
             'flow_rate': 0,
             'stopped_vehicles': 0,
             'left_turn_vehicles': 0,
-            'left_turn_waiting_time': 0
+            'left_turn_waiting_time': 0,
+            'left_turn_vehicle_ids': []
         }
     
     return metrics
 
 def is_left_turn_movement(current_edge, next_edge):
-    """Phát hiện chuyển động rẽ trái dựa trên tên edge"""
-    # Mapping các edge trong mạng đường
+    """Phát hiện chuyển động rẽ trái dựa trên tên edge - ĐÃ CẢI TIẾN"""
+    # Mapping hướng di chuyển dựa trên tên edge
     edge_directions = {
         'E1': 'south_to_center',  # Từ Nam lên
         'E2': 'center_to_west',   # Đi Tây
@@ -134,7 +161,7 @@ def is_left_turn_movement(current_edge, next_edge):
         '-E5': 'center_to_north'  # Đi Bắc
     }
     
-    # Logic rẽ trái đơn giản
+    # Logic rẽ trái đơn giản - MỞ RỘNG DANH SÁCH
     left_turn_patterns = [
         ('E1', 'E4'),     # Nam -> Đông (rẽ trái)
         ('E1', '-E2'),    # Nam -> Tây (rẽ trái) 
@@ -143,13 +170,16 @@ def is_left_turn_movement(current_edge, next_edge):
         ('-E4', '-E1'),   # Đông -> Nam (rẽ trái)
         ('-E4', 'E5'),    # Đông -> Bắc (rẽ trái)
         ('E5', '-E4'),    # Bắc -> Đông (rẽ trái)
-        ('E5', 'E2')      # Bắc -> Tây (rẽ trái)
+        ('E5', 'E2'),     # Bắc -> Tây (rẽ trái)
+        # Thêm các mẫu có thể thiếu
+        ('E1', '-E5'),    # Nam -> Bắc (qua giao lộ)
+        ('E5', '-E1')     # Bắc -> Nam (qua giao lộ)
     ]
     
     return (current_edge, next_edge) in left_turn_patterns
 
 def calculate_status(metrics_list, is_left_turn_priority=False):
-    """Tính toán trạng thái với ưu tiên rẽ trái"""
+    """Tính toán trạng thái với ưu tiên rẽ trái - ĐÃ CẢI TIẾN"""
     # Trọng số cơ bản
     weights = {
         'queue_length': 0.25,
@@ -160,10 +190,10 @@ def calculate_status(metrics_list, is_left_turn_priority=False):
         'stopped_vehicles': 0.05
     }
     
-    # Trọng số đặc biệt cho rẽ trái
+    # Trọng số đặc biệt cho rẽ trái - TĂNG TRỌNG SỐ
     left_turn_weights = {
-        'left_turn_vehicles': 0.3,
-        'left_turn_waiting_time': 0.4
+        'left_turn_vehicles': 0.4,        # Tăng trọng số
+        'left_turn_waiting_time': 0.5     # Tăng trọng số
     }
     
     status_components = []
@@ -181,10 +211,15 @@ def calculate_status(metrics_list, is_left_turn_priority=False):
         
         # Thêm điểm ưu tiên rẽ trái
         if metrics['left_turn_vehicles'] > 0:
+            # ĐÃ CẢI THIỆN: Ngay cả khi chỉ có 1 xe rẽ trái, vẫn tăng điểm đáng kể
             left_turn_score = (
-                left_turn_weights['left_turn_vehicles'] * min(metrics['left_turn_vehicles'] / LEFT_TURN_MIN_VEHICLES, 1) +
+                left_turn_weights['left_turn_vehicles'] +  # Luôn cộng điểm cơ bản
                 left_turn_weights['left_turn_waiting_time'] * min(metrics['left_turn_waiting_time'] / LEFT_TURN_MAX_WAIT, 1)
             )
+            
+            # Thêm hệ số dựa trên thời gian chờ
+            if metrics['left_turn_waiting_time'] > LEFT_TURN_MAX_WAIT * 0.5:
+                left_turn_score *= 1.5  # Tăng 50% điểm khi thời gian chờ vượt quá 50% ngưỡng
             
             # Nhân với hệ số ưu tiên
             if is_left_turn_priority:
@@ -207,7 +242,7 @@ def calculate_status(metrics_list, is_left_turn_priority=False):
     return adjusted_status, status_components
 
 def needs_left_turn_phase(detector_groups, all_metrics):
-    """Kiểm tra xem có cần pha rẽ trái không"""
+    """Kiểm tra xem có cần pha rẽ trái không - ĐÃ CẢI TIẾN"""
     if not PROTECTED_LEFT_TURN_ENABLED:
         return False, None
     
@@ -216,16 +251,26 @@ def needs_left_turn_phase(detector_groups, all_metrics):
     for direction, detectors in detector_groups.items():
         total_left_turn_vehicles = 0
         max_left_turn_waiting = 0
+        left_turn_vehicle_ids = []
         
         for detector in detectors:
             metrics = get_lane_metrics(detector)
             total_left_turn_vehicles += metrics['left_turn_vehicles']
             max_left_turn_waiting = max(max_left_turn_waiting, metrics['left_turn_waiting_time'])
+            left_turn_vehicle_ids.extend(metrics.get('left_turn_vehicle_ids', []))
+        
+        # ĐÃ CẢI THIỆN: Công thức tính độ ưu tiên
+        # Ngay cả khi chỉ có 1 xe rẽ trái với thời gian chờ dài, vẫn ưu tiên cao
+        priority_score = total_left_turn_vehicles * 10
+        if max_left_turn_waiting > 0:
+            # Trọng số tăng theo thời gian chờ theo hàm mũ
+            priority_score += min(max_left_turn_waiting * 0.5, LEFT_TURN_MAX_WAIT) ** 1.5
         
         left_turn_demand[direction] = {
             'vehicles': total_left_turn_vehicles,
             'max_waiting': max_left_turn_waiting,
-            'priority_score': total_left_turn_vehicles * 0.5 + max_left_turn_waiting * 0.01
+            'priority_score': priority_score,
+            'vehicle_ids': left_turn_vehicle_ids
         }
     
     # Tìm hướng cần pha rẽ trái nhất
@@ -233,26 +278,36 @@ def needs_left_turn_phase(detector_groups, all_metrics):
     best_score = 0
     
     for direction, demand in left_turn_demand.items():
-        if (demand['vehicles'] >= LEFT_TURN_MIN_VEHICLES or 
-            demand['max_waiting'] >= LEFT_TURN_MAX_WAIT) and demand['priority_score'] > best_score:
+        # ĐÃ CẢI THIỆN: Điều kiện ưu tiên
+        # Nếu có ít nhất 1 xe rẽ trái HOẶC thời gian chờ cao
+        if ((demand['vehicles'] >= LEFT_TURN_MIN_VEHICLES) or 
+            (demand['max_waiting'] >= LEFT_TURN_MAX_WAIT * 0.75)) and demand['priority_score'] > best_score:
             best_direction = direction
             best_score = demand['priority_score']
+    
+    # Log thông tin cho debug
+    if best_direction:
+        demand = left_turn_demand[best_direction]
+        print(f"🚨 Phát hiện nhu cầu rẽ trái ở hướng {best_direction}: {demand['vehicles']} xe, chờ {demand['max_waiting']:.1f}s, điểm {best_score:.1f}")
     
     return best_direction is not None, best_direction
 
 def get_left_turn_phase(direction):
-    """Lấy pha rẽ trái cho hướng cụ thể"""
-    # Mapping pha rẽ trái - cần điều chỉnh theo cấu hình đèn thực tế
+    """Lấy pha rẽ trái cho hướng cụ thể - ĐÃ CẢI TIẾN"""
+    # Mapping pha rẽ trái
     left_turn_phases = {
         'North': 4,  # Pha rẽ trái từ Bắc
         'South': 4,  # Pha rẽ trái từ Nam  
         'East': 6,   # Pha rẽ trái từ Đông
         'West': 6    # Pha rẽ trái từ Tây
     }
+    
+    # Log để debug
+    print(f"🔄 Chọn pha rẽ trái {left_turn_phases.get(direction, 4)} cho hướng {direction}")
     return left_turn_phases.get(direction, 4)
 
 def can_stop_safely(speed, distance):
-    """Kiểm tra an toàn dừng xe - Cải tiến toàn diện"""
+    """Kiểm tra an toàn dừng xe"""
     if speed < 0.5:
         return True
     
@@ -456,6 +511,55 @@ def plot_traffic_status(status_data, threshold):
     print("Đã lưu biểu đồ dưới dạng 'he_thong_dieu_khien_re_trai_toi_uu.png'")
     plt.show()
 
+def process_left_turn_vehicles(direction, left_turn_vehicles, max_process=MAX_LEFT_TURN_VEHICLES_PER_CYCLE):
+    """CHỨC NĂNG MỚI: Xử lý xe rẽ trái để đảm bảo nhiều xe di chuyển cùng lúc"""
+    print(f"👉 Xử lý {len(left_turn_vehicles)} xe rẽ trái cho hướng {direction}")
+    
+    # Sắp xếp xe theo thời gian chờ, ưu tiên xe chờ lâu nhất
+    vehicles_with_wait_time = []
+    for veh_id in left_turn_vehicles:
+        try:
+            wait_time = traci.vehicle.getWaitingTime(veh_id)
+            vehicles_with_wait_time.append((veh_id, wait_time))
+        except:
+            continue
+    
+    # Sắp xếp giảm dần theo thời gian chờ
+    vehicles_with_wait_time.sort(key=lambda x: x[1], reverse=True)
+    
+    # Xử lý đến max_process xe
+    count = 0
+    for veh_id, wait_time in vehicles_with_wait_time[:max_process]:
+        try:
+            # Tăng ưu tiên cho xe này để đảm bảo nó khởi hành
+            traci.vehicle.setSpeedFactor(veh_id, 1.2)  # Tăng 20% tốc độ tối đa
+            traci.vehicle.setSpeed(veh_id, -1)  # Đặt lại tốc độ để kích hoạt lại xe
+            
+            # Thêm: Đánh dấu xe để không bị dừng bởi các xe khác
+            traci.vehicle.setParameter(veh_id, "junctionModel.ignoreIDs", "all")
+            traci.vehicle.setParameter(veh_id, "junctionModel.ignoreTypes", "all")
+            
+            # Thêm: Giảm thời gian phản ứng
+            traci.vehicle.setParameter(veh_id, "junctionModel.sigma", "0.1")  # Giảm độ không chắc chắn
+            
+            # Tăng gia tốc tối đa để xe di chuyển nhanh hơn
+            default_accel = traci.vehicle.getAccel(veh_id)
+            traci.vehicle.setAccel(veh_id, default_accel * 1.3)  # Tăng 30% gia tốc
+            
+            # Đặt xe vào chế độ ưu tiên tại giao lộ
+            try:
+                traci.vehicle.setParameter(veh_id, "has.priority", "true")
+                traci.vehicle.setParameter(veh_id, "junctionModel.impatience", "1.0")
+            except:
+                pass
+            
+            count += 1
+            print(f"   ✅ Xử lý xe {veh_id} (đã chờ {wait_time:.1f}s)")
+        except Exception as e:
+            print(f"   ❌ Lỗi xử lý xe {veh_id}: {str(e)}")
+    
+    return count
+
 def run_simulation():
     """Chạy mô phỏng với cải tiến rẽ trái"""
     # Xác định nhóm bộ dò theo hướng
@@ -481,6 +585,9 @@ def run_simulation():
     cooldown_timer = 0
     left_turn_phase_active = False
     left_turn_phase_duration = 0
+    last_left_turn_direction = None
+    active_left_turn_vehicles = []
+    processed_left_turn_count = 0
     
     # Dữ liệu cho trực quan hóa
     status_data = {'time': [], 'North': [], 'South': [], 'East': [], 'West': []}
@@ -512,7 +619,7 @@ def run_simulation():
         for direction, detectors in detector_groups.items():
             direction_metrics = [get_lane_metrics(detector) for detector in detectors]
             # Đánh dấu ưu tiên rẽ trái cho hướng hiện tại
-            is_left_priority = left_turn_phase_active and direction in ['North', 'South', 'East', 'West']
+            is_left_priority = left_turn_phase_active and direction == last_left_turn_direction
             status, components = calculate_status(direction_metrics, is_left_priority)
             all_metrics[direction] = {
                 'status': status,
@@ -541,15 +648,88 @@ def run_simulation():
             step += 1
             continue
         
-        # Xử lý pha rẽ trái đang hoạt động
+        # PHẦN CẢI TIẾN: Xử lý pha rẽ trái đang hoạt động
         if left_turn_phase_active:
+            # Giai đoạn đầu tiên: Xử lý và kích hoạt các xe rẽ trái
+            if left_turn_phase_duration == 1:
+                # Thu thập tất cả xe rẽ trái trong hướng hiện tại
+                all_left_turn_vehicles = []
+                
+                for detector in detector_groups[last_left_turn_direction]:
+                    metrics = get_lane_metrics(detector)
+                    all_left_turn_vehicles.extend(metrics.get('left_turn_vehicle_ids', []))
+                
+                # Lưu danh sách các xe đang xử lý
+                active_left_turn_vehicles = all_left_turn_vehicles
+                
+                # Kích hoạt xử lý xe rẽ trái - ĐIỂM QUAN TRỌNG
+                processed_left_turn_count = process_left_turn_vehicles(
+                    last_left_turn_direction, 
+                    active_left_turn_vehicles
+                )
+                
+                # Nếu không có xe nào được xử lý, kết thúc pha sớm
+                if processed_left_turn_count == 0:
+                    left_turn_phase_active = False
+                    left_turn_phase_duration = 0
+                    traci.trafficlight.setPhase('E3', current_phase)
+                    cooldown_timer = COOLDOWN_PERIOD // 4
+                    print(f"🔄 Thời điểm {step/10:.1f}s: Không phát hiện xe rẽ trái, kết thúc pha sớm")
+            
+            # Mỗi 5 giây, kiểm tra còn xe nào đang chờ không
+            elif left_turn_phase_duration % 50 == 0 and left_turn_phase_duration < LEFT_TURN_PHASE_DURATION:
+                # Kiểm tra các xe đang xử lý
+                still_waiting_count = 0
+                for veh_id in active_left_turn_vehicles:
+                    try:
+                        if traci.vehicle.getWaitingTime(veh_id) > 0.5:
+                            still_waiting_count += 1
+                    except:
+                        # Xe có thể đã ra khỏi mô phỏng
+                        pass
+                
+                # Thu thập thêm xe mới (nếu có)
+                new_left_turn_vehicles = []
+                for detector in detector_groups[last_left_turn_direction]:
+                    metrics = get_lane_metrics(detector)
+                    for veh_id in metrics.get('left_turn_vehicle_ids', []):
+                        if veh_id not in active_left_turn_vehicles:
+                            new_left_turn_vehicles.append(veh_id)
+                
+                # Nếu không còn xe nào đang chờ và không có xe mới
+                if still_waiting_count == 0 and not new_left_turn_vehicles:
+                    left_turn_phase_duration = LEFT_TURN_PHASE_DURATION  # Kết thúc pha sớm
+                    print(f"🔄 Thời điểm {step/10:.1f}s: Tất cả xe rẽ trái đã di chuyển, kết thúc pha sớm")
+                elif new_left_turn_vehicles:
+                    # Xử lý thêm xe mới
+                    new_processed = process_left_turn_vehicles(last_left_turn_direction, new_left_turn_vehicles)
+                    active_left_turn_vehicles.extend(new_left_turn_vehicles)
+                    processed_left_turn_count += new_processed
+                    print(f"🔄 Thời điểm {step/10:.1f}s: Phát hiện và xử lý thêm {new_processed} xe rẽ trái mới")
+            
+            # Kết thúc pha rẽ trái sau khi đã hoàn thành thời gian
             if left_turn_phase_duration >= LEFT_TURN_PHASE_DURATION:
-                # Kết thúc pha rẽ trái, quay về pha chính
-                left_turn_phase_active = False
-                left_turn_phase_duration = 0
-                traci.trafficlight.setPhase('E3', current_phase)
-                cooldown_timer = COOLDOWN_PERIOD // 2  # Cooldown ngắn hơn
-                print(f"🔄 Thời điểm {step/10:.1f}s: Kết thúc pha rẽ trái, quay về pha {current_phase}")
+                # Kiểm tra có cần kéo dài thêm không
+                need_extension = False
+                
+                # Nếu có nhiều hơn 3 xe và đã xử lý ít nhất 2 xe
+                if len(active_left_turn_vehicles) > 3 and processed_left_turn_count >= 2:
+                    # Kiểm tra còn xe nào vẫn đang di chuyển trong giao lộ
+                    vehicles_in_junction = get_vehicles_in_junction('E3')
+                    left_turn_vehicles_in_junction = [veh for veh in vehicles_in_junction if veh in active_left_turn_vehicles]
+                    
+                    if left_turn_vehicles_in_junction:
+                        need_extension = True
+                        left_turn_phase_duration -= LEFT_TURN_PHASE_EXTENSION  # Kéo dài thêm
+                        print(f"🕒 Thời điểm {step/10:.1f}s: Kéo dài pha rẽ trái thêm {LEFT_TURN_PHASE_EXTENSION/10}s để các xe hoàn tất")
+                
+                # Kết thúc pha nếu không cần kéo dài
+                if not need_extension:
+                    left_turn_phase_active = False
+                    left_turn_phase_duration = 0
+                    traci.trafficlight.setPhase('E3', current_phase)
+                    cooldown_timer = COOLDOWN_PERIOD // 2  # Cooldown ngắn hơn
+                    print(f"🔄 Thời điểm {step/10:.1f}s: Kết thúc pha rẽ trái, quay về pha {current_phase}")
             step += 1
             continue
         
@@ -589,6 +769,7 @@ def run_simulation():
             if is_safe_to_change_phase(current_detectors):
                 left_turn_phase_active = True
                 left_turn_phase_duration = 0
+                last_left_turn_direction = left_turn_direction
                 left_turn_activations += 1
                 traci.trafficlight.setPhase('E3', left_turn_phase)
                 print(f"↩️  Thời điểm {step/10:.1f}s: Kích hoạt pha rẽ trái cho hướng {left_turn_direction} (pha {left_turn_phase})")
