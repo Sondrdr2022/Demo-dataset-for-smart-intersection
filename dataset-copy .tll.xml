@@ -1,22 +1,19 @@
 <additional>
     <tlLogic id="E3" type="actuated" programID="adaptive_1" offset="0">
-        <!-- Pha đèn chính - đều 16 ký tự -->
-        <phase duration="42" state="GGGgrrrrGGGgrrrr"/>
-        <phase duration="3" state="yyyyrrrryyyyrrrr"/>
-        <phase duration="42" state="rrrrGGGgrrrrGGGg"/>
-        <phase duration="3" state="rrrryyyyrrrryyyy"/>
+        <!-- Phase 1: North-South through movement with protected left turns -->
+        <phase duration="30" state="GGGGggrrrrrrGGGggrrrrr"/>
+        <!-- Phase 2: North-South left turns only -->
+        <phase duration="15" state="rrrrGGrrrrrrrrrGGrrrrr"/>
+        <!-- Phase 3: Yellow transition -->
+        <phase duration="3" state="yyyyyyrrrrrryyyyyrrrrr"/>
+        <!-- Phase 4: East-West through movement with protected left turns -->
+        <phase duration="30" state="rrrrrrGGGGggrrrrrGGGgg"/>
+        <!-- Phase 5: East-West left turns only -->
+        <phase duration="15" state="rrrrrrrrrGGrrrrrrrrrGG"/>
+        <!-- Phase 6: Yellow transition -->
+        <phase duration="3" state="rrrrrryyyyyyrrrrryyyyy"/>
         
-        <!-- Các pha rẽ trái - đều 16 ký tự -->
-        <phase duration="20" state="rrrGrrrrrrrrrrrr"/> <!-- Bắc -->
-        <phase duration="3" state="rrryrrrrrrrrrrrr"/> 
-        <phase duration="20" state="rrrrrrrrrrGrrrrr"/> <!-- Nam -->
-        <phase duration="3" state="rrrrrrrrrryrrrrr"/>
-        <phase duration="20" state="rrrrGrrrrrrrrrrr"/> <!-- Đông -->
-        <phase duration="3" state="rrrryrrrrrrrrrrr"/>
-        <phase duration="20" state="rrrrrrrrrrrrrrrG"/> <!-- Tây -->
-        <phase duration="3" state="rrrrrrrrrrrrrrrry"/>
-        
-        <!-- Các tham số cho đèn giao thông thích ứng -->
+        <!-- Actuated parameters -->
         <param key="detector-gap" value="2.0"/>
         <param key="show-detectors" value="true"/>
         <param key="file" value="tls_state.xml"/>

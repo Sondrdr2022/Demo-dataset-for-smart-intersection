@@ -14,8 +14,8 @@ else:
     sys.exit("Vui lòng khai báo biến môi trường 'SUMO_HOME'")
 
 # Cấu hình
-THRESHOLD = 0.7      # Ngưỡng cho trạng thái được coi là "TỐT"
-SIMULATION_TIME = 3600  # Thời gian mô phỏng (giây)
+THRESHOLD = 1      # Ngưỡng cho trạng thái được coi là "TỐT"
+SIMULATION_TIME = 10000  # Thời gian mô phỏng (giây)
 DATA_COLLECTION_INTERVAL = 50  # Thu thập dữ liệu mỗi 5 giây (50 * 0.1s)
 
 def start_sumo():
