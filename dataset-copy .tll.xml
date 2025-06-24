@@ -1,0 +1,25 @@
+<additional>
+    <tlLogic id="E3" type="actuated" programID="adaptive_1" offset="0">
+        <!-- Pha đèn chính - đều 16 ký tự -->
+        <phase duration="42" state="GGGgrrrrGGGgrrrr"/>
+        <phase duration="3" state="yyyyrrrryyyyrrrr"/>
+        <phase duration="42" state="rrrrGGGgrrrrGGGg"/>
+        <phase duration="3" state="rrrryyyyrrrryyyy"/>
+        
+        <!-- Các pha rẽ trái - đều 16 ký tự -->
+        <phase duration="20" state="rrrGrrrrrrrrrrrr"/> <!-- Bắc -->
+        <phase duration="3" state="rrryrrrrrrrrrrrr"/> 
+        <phase duration="20" state="rrrrrrrrrrGrrrrr"/> <!-- Nam -->
+        <phase duration="3" state="rrrrrrrrrryrrrrr"/>
+        <phase duration="20" state="rrrrGrrrrrrrrrrr"/> <!-- Đông -->
+        <phase duration="3" state="rrrryrrrrrrrrrrr"/>
+        <phase duration="20" state="rrrrrrrrrrrrrrrG"/> <!-- Tây -->
+        <phase duration="3" state="rrrrrrrrrrrrrrrry"/>
+        
+        <!-- Các tham số cho đèn giao thông thích ứng -->
+        <param key="detector-gap" value="2.0"/>
+        <param key="show-detectors" value="true"/>
+        <param key="file" value="tls_state.xml"/>
+        <param key="freq" value="300"/>
+    </tlLogic>
+</additional>
