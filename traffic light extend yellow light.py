@@ -20,7 +20,7 @@ YELLOW_TIME = 10     # Tăng từ 7 lên 10 giây để cho xe có nhiều thờ
 CLEARANCE_TIME = 5   # Tăng từ 3 lên 5 giây để đảm bảo giao lộ hoàn toàn trống
 COOLDOWN_PERIOD = 20 # Tăng từ 15 lên 20 giây
 THRESHOLD = 0.7      # Giữ ngưỡng trạng thái "TỐT" không đổi
-JUNCTION_CLEARING_DISTANCE = 60  # Tăng từ 40 lên 50 mét để mở rộng vùng an toàn hơn nữa
+JUNCTION_CLEARING_DISTANCE = 50  # Tăng từ 40 lên 50 mét để mở rộng vùng an toàn hơn nữa
 SAFETY_SPEED_BUFFER = 2          # Giảm từ 3 xuống 2 để phát hiện thêm nhiều xe hơn
 YELLOW_TIME_BUFFER = 3           # Thời gian đệm bổ sung cho việc tính toán an toàn đèn vàng
 MAX_DECELERATION = 3.0           # Giảm tốc tối đa an toàn (m/s²) để tránh phanh khẩn cấp
@@ -293,7 +293,7 @@ def run_simulation():
     transition_stage = 0  # 0: normal, 1: yellow, 2: all-red
     
     print("Bắt đầu mô phỏng với đèn vàng kéo dài để giảm thiểu phanh khẩn cấp...")
-    while step < 5000:  
+    while step < 10000:  
         traci.simulationStep()
         
         # Kiểm tra sự kiện phanh khẩn cấp trong bước này

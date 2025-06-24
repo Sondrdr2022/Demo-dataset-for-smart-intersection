@@ -328,7 +328,7 @@ def run_simulation():
     
     print("Starting simulation with enhanced emergency braking prevention...")
     
-    while step < 5000:
+    while step < 10000:
         traci.simulationStep()
         
         # Check emergency braking events
