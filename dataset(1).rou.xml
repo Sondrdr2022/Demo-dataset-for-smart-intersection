@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
+    <!-- Vehicle Type Definition -->
+    <vType id="car" accel="2.6" decel="4.5" sigma="0.5" length="5" maxSpeed="50"/>
+    
+    <!-- Giờ sáng sớm (0-2h): ít xe (300 xe/h) -->
+    <flow id="f_0_early" type="car" begin="0.00" from="E1-3" to="E3-5" end="7200.00" vehsPerHour="300"/>
+    <flow id="f_1_early" type="car" begin="0.00" from="E3-4" to="E2-3" end="7200.00" vehsPerHour="300"/>
+    <flow id="f_2_early" type="car" begin="0.00" from="E3-2" to="E4-3" end="7200.00" vehsPerHour="300"/>
+    <flow id="f_3_early" type="car" begin="0.00" from="E5-3" to="E3-1" end="7200.00" vehsPerHour="300"/>
+    
+    <!-- Giờ cao điểm sáng (2-4h): đông xe (1800 xe/h) -->
+    <flow id="f_0_rush1" type="car" begin="7200.00" from="E1-3" to="E3-5" end="14400.00" vehsPerHour="1800"/>
+    <flow id="f_1_rush1" type="car" begin="7200.00" from="E3-4" to="E2-3" end="14400.00" vehsPerHour="1800"/>
+    <flow id="f_2_rush1" type="car" begin="7200.00" from="E3-2" to="E4-3" end="14400.00" vehsPerHour="1800"/>
+    <flow id="f_3_rush1" type="car" begin="7200.00" from="E5-3" to="E3-1" end="14400.00" vehsPerHour="1800"/>
+    
+    <!-- Giờ bình thường (4-8h): trung bình (800 xe/h) -->
+    <flow id="f_0_normal" type="car" begin="14400.00" from="E1-3" to="E3-5" end="28800.00" vehsPerHour="800"/>
+    <flow id="f_1_normal" type="car" begin="14400.00" from="E3-4" to="E2-3" end="28800.00" vehsPerHour="800"/>
+    <flow id="f_2_normal" type="car" begin="14400.00" from="E3-2" to="E4-3" end="28800.00" vehsPerHour="800"/>
+    <flow id="f_3_normal" type="car" begin="14400.00" from="E5-3" to="E3-1" end="28800.00" vehsPerHour="800"/>
+    
+    <!-- Tất cả các flow khác tương tự... -->
+</routes>
