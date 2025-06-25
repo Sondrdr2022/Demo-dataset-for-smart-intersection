@@ -1,22 +1,23 @@
-<additional>
-    <tlLogic id="E3" type="actuated" programID="adaptive_1" offset="0">
-        <!-- Phase 1: North-South through movement with protected left turns -->
-        <phase duration="30" state="GGGGggrrrrrrGGGggrrrrr"/>
-        <!-- Phase 2: North-South left turns only -->
-        <phase duration="15" state="rrrrGGrrrrrrrrrGGrrrrr"/>
-        <!-- Phase 3: Yellow transition -->
-        <phase duration="3" state="yyyyyyrrrrrryyyyyrrrrr"/>
-        <!-- Phase 4: East-West through movement with protected left turns -->
-        <phase duration="30" state="rrrrrrGGGGggrrrrrGGGgg"/>
-        <!-- Phase 5: East-West left turns only -->
-        <phase duration="15" state="rrrrrrrrrGGrrrrrrrrrGG"/>
-        <!-- Phase 6: Yellow transition -->
-        <phase duration="3" state="rrrrrryyyyyyrrrrryyyyy"/>
-        
-        <!-- Actuated parameters -->
-        <param key="detector-gap" value="2.0"/>
-        <param key="show-detectors" value="true"/>
-        <param key="file" value="tls_state.xml"/>
-        <param key="freq" value="300"/>
-    </tlLogic>
-</additional>
+<tlLogic id="E3" type="actuated" programID="adaptive_1" offset="0">
+    <!--  Phase 1: North-South through movement with protected left turns  -->
+    <phase duration="30" state="GGGGggrrrrrrGGGggrrrrr"/>
+    <!--  Yellow transition for Phase 1 to Phase 2  -->
+    <phase duration="3" state="yyyyggrrrrrryyyygrrrrr"/>
+    <!--  Phase 2: North-South left turns only  -->
+    <phase duration="15" state="rrrrGGrrrrrrrrrGGrrrrr"/>
+    <!--  Phase 3: Yellow transition  -->
+    <phase duration="3" state="yyyyyyrrrrrryyyyyrrrrr"/>
+    <!--  Phase 4: East-West through movement with protected left turns  -->
+    <phase duration="30" state="rrrrrrGGGGggrrrrrGGGgg"/>
+    <!--  Yellow transition for Phase 4 to Phase 5  -->
+    <phase duration="3" state="rrrrrryyyyggrrrrryyyyg"/>
+    <!--  Phase 5: East-West left turns only  -->
+    <phase duration="15" state="rrrrrrrrrGGrrrrrrrrrGG"/>
+    <!--  Phase 6: Yellow transition  -->
+    <phase duration="3" state="rrrrrryyyyyyrrrrryyyyy"/>
+    <!--  Actuated parameters  -->
+    <param key="detector-gap" value="2.0"/>
+    <param key="show-detectors" value="true"/>
+    <param key="file" value="tls_state.xml"/>
+    <param key="freq" value="300"/>
+</tlLogic>

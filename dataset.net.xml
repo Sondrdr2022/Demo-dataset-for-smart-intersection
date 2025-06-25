@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- generated on 2025-06-24 16:25:38 by Eclipse SUMO netedit Version 1.22.0
+<!-- generated on 2025-06-25 10:03:51 by Eclipse SUMO netedit Version 1.22.0
 <neteditConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/neteditConfiguration.xsd">
 
     <input>
@@ -11,7 +11,7 @@
     </input>
 
     <output>
-        <tls-file value="C:\Users\Admin\Downloads\sumo test\New folder\dataset.tll.xml"/>
+        <tls-file value="C:\Users\Admin\Downloads\sumo test\New folder\dataset-copy .tll.xml"/>
         <output-file value="C:\Users\Admin\Downloads\sumo test\New folder\dataset.net.xml"/>
     </output>
 
@@ -141,6 +141,20 @@
         <phase duration="3"  state="rrrrrryyyyyyrrrrryyyyy"/>
         <phase duration="42" state="GGGGggrrrrrrGGGggrrrrr"/>
         <phase duration="3"  state="yyyyyyrrrrrryyyyyrrrrr"/>
+    </tlLogic>
+    <tlLogic id="E3" type="actuated" programID="adaptive_1" offset="0">
+        <phase duration="30" state="GGGGggrrrrrrGGGggrrrrr"/>
+        <phase duration="3"  state="yyyyggrrrrrryyyygrrrrr"/>
+        <phase duration="15" state="rrrrGGrrrrrrrrrGGrrrrr"/>
+        <phase duration="3"  state="yyyyyyrrrrrryyyyyrrrrr"/>
+        <phase duration="30" state="rrrrrrGGGGggrrrrrGGGgg"/>
+        <phase duration="3"  state="rrrrrryyyyggrrrrryyyyg"/>
+        <phase duration="15" state="rrrrrrrrrGGrrrrrrrrrGG"/>
+        <phase duration="3"  state="rrrrrryyyyyyrrrrryyyyy"/>
+        <param key="detector-gap" value="2.0"/>
+        <param key="file" value="tls_state.xml"/>
+        <param key="freq" value="300"/>
+        <param key="show-detectors" value="true"/>
     </tlLogic>
 
     <junction id="E1" type="dead_end" x="-44.47" y="62.58" incLanes="E3-1_0 E3-1_1" intLanes="" shape="-44.47,62.58 -38.07,62.41 -44.47,62.58"/>
