@@ -4,6 +4,7 @@ import traci
 import numpy as np
 import matplotlib.pyplot as plt
 from collections import defaultdict
+import time
 
 # Thêm SUMO vào đường dẫn Python
 if 'SUMO_HOME' in os.environ:
@@ -27,27 +28,120 @@ def start_sumo():
     sumoCmd = [sumoBinary, '-c', r"C:\Users\Admin\Downloads\sumo test\New folder\dataset.sumocfg", '--step-length', '0.1']
     traci.start(sumoCmd)
 
+def check_and_setup_traffic_light():
+    """Kiểm tra và thiết lập traffic light program"""
+    try:
+        # Lấy danh sách tất cả traffic lights
+        tl_ids = traci.trafficlight.getIDList()
+        print(f"Traffic lights tìm thấy: {tl_ids}")
+        
+        if 'E3' not in tl_ids:
+            print("Không tìm thấy traffic light E3!")
+            return False
+        
+        # Kiểm tra program hiện tại
+        current_program = traci.trafficlight.getProgram('E3')
+        print(f"Program hiện tại: {current_program}")
+        
+        # Lấy tất cả programs có sẵn
+        all_programs = traci.trafficlight.getAllProgramLogics('E3')
+        print(f"Số lượng programs có sẵn: {len(all_programs)}")
+        
+        for i, program in enumerate(all_programs):
+            print(f"Program {i}: ID='{program.programID}', Phases={len(program.phases)}")
+            if program.programID == 'adaptive_1':
+                print(f"  Tìm thấy program adaptive_1 với {len(program.phases)} phases")
+                for j, phase in enumerate(program.phases):
+                    print(f"    Phase {j}: {phase.state} (duration: {phase.duration})")
+        
+        # Chuyển sang program adaptive_1 nếu khả dụng
+        try:
+            if current_program != 'adaptive_1':
+                traci.trafficlight.setProgram('E3', 'adaptive_1')
+                print("Đã chuyển sang program adaptive_1")
+                
+                # Kiểm tra lại sau khi chuyển
+                new_program = traci.trafficlight.getProgram('E3')
+                print(f"Program sau khi chuyển: {new_program}")
+                
+                # Kiểm tra số phases hiện có
+                current_phase_count = len(traci.trafficlight.getAllProgramLogics('E3')[0].phases)
+                print(f"Số phases khả dụng: {current_phase_count}")
+                
+        except Exception as e:
+            print(f"Lỗi khi chuyển program: {e}")
+            print("Tiếp tục với program mặc định")
+        
+        return True
+        
+    except Exception as e:
+        print(f"Lỗi khi kiểm tra traffic light: {e}")
+        return False
+
+def safe_set_phase(tl_id, phase_index):
+    """Chuyển pha một cách an toàn với kiểm tra"""
+    try:
+        # Kiểm tra program hiện tại
+        current_program = traci.trafficlight.getProgram(tl_id)
+        all_programs = traci.trafficlight.getAllProgramLogics(tl_id)
+        
+        # Tìm program hiện tại
+        current_program_logic = None
+        for program in all_programs:
+            if program.programID == current_program:
+                current_program_logic = program
+                break
+        
+        if current_program_logic is None:
+            print(f"Không tìm thấy program logic cho {current_program}")
+            return False
+        
+        # Kiểm tra phase có tồn tại không
+        max_phase = len(current_program_logic.phases) - 1
+        if 0 <= phase_index <= max_phase:
+            traci.trafficlight.setPhase(tl_id, phase_index)
+            print(f"Chuyển sang phase {phase_index} thành công")
+            return True
+        else:
+            print(f"Phase {phase_index} không hợp lệ. Phạm vi cho phép: [0, {max_phase}]")
+            return False
+            
+    except Exception as e:
+        print(f"Lỗi khi chuyển pha {phase_index}: {e}")
+        return False
+
 def get_lane_metrics(detector_id):
     """Lấy các chỉ số cho làn đường cụ thể"""
     metrics = {}
     
-    # Độ dài hàng đợi (số xe)
-    metrics['queue_length'] = traci.lanearea.getJamLengthVehicle(detector_id)
-    
-    # Thời gian chờ (thời gian chờ tối đa của các xe trên bộ dò)
-    vehicles = traci.lanearea.getLastStepVehicleIDs(detector_id)
-    wait_times = [traci.vehicle.getWaitingTime(veh) for veh in vehicles] if vehicles else [0]
-    metrics['waiting_time'] = max(wait_times) if wait_times else 0
-    
-    # Mật độ làn đường (xe trên chiều dài làn)
-    occupancy = traci.lanearea.getLastStepOccupancy(detector_id) / 100.0  # Chuyển đổi từ phần trăm
-    metrics['density'] = occupancy
-    
-    # Tốc độ trung bình
-    metrics['avg_speed'] = traci.lanearea.getLastStepMeanSpeed(detector_id)
-    
-    # Lưu lượng xe (xe/giờ)
-    metrics['flow_rate'] = traci.lanearea.getLastStepVehicleNumber(detector_id) * 3600  # xe/giờ
+    try:
+        # Độ dài hàng đợi (số xe)
+        metrics['queue_length'] = traci.lanearea.getJamLengthVehicle(detector_id)
+        
+        # Thời gian chờ (thời gian chờ tối đa của các xe trên bộ dò)
+        vehicles = traci.lanearea.getLastStepVehicleIDs(detector_id)
+        wait_times = [traci.vehicle.getWaitingTime(veh) for veh in vehicles] if vehicles else [0]
+        metrics['waiting_time'] = max(wait_times) if wait_times else 0
+        
+        # Mật độ làn đường (xe trên chiều dài làn)
+        occupancy = traci.lanearea.getLastStepOccupancy(detector_id) / 100.0
+        metrics['density'] = occupancy
+        
+        # Tốc độ trung bình
+        metrics['avg_speed'] = traci.lanearea.getLastStepMeanSpeed(detector_id)
+        
+        # Lưu lượng xe (xe/giờ)
+        metrics['flow_rate'] = traci.lanearea.getLastStepVehicleNumber(detector_id) * 3600
+        
+    except traci.exceptions.TraCIException as e:
+        print(f"Lỗi khi lấy metrics từ detector {detector_id}: {e}")
+        metrics = {
+            'queue_length': 0,
+            'waiting_time': 0,
+            'density': 0,
+            'avg_speed': 0,
+            'flow_rate': 0
+        }
     
     return metrics
 
@@ -70,7 +164,7 @@ def calculate_status(metrics_list):
             weights['queue_length'] * min(metrics['queue_length'] / 10, 1) +
             weights['waiting_time'] * min(metrics['waiting_time'] / 60, 1) +
             weights['density'] * metrics['density'] +
-            weights['flow_rate'] * (metrics['flow_rate'] / 1800)  # Chuẩn hóa theo lưu lượng tối đa
+            weights['flow_rate'] * (metrics['flow_rate'] / 1800)
         )
         status_components.append(lane_score)
     
@@ -213,6 +307,14 @@ def plot_traffic_status(status_data, threshold):
 
 def run_simulation():
     """Chạy mô phỏng"""
+    # Kiểm tra và thiết lập traffic light
+    if not check_and_setup_traffic_light():
+        print("Không thể thiết lập traffic light. Dừng simulation.")
+        return
+    
+    # Đợi một chút để đảm bảo cấu hình được áp dụng
+    time.sleep(1)
+    
     # Xác định nhóm bộ dò theo hướng
     detector_groups = {
         'North': ['E1-3-1', 'E1-3-2'],  # Hướng Bắc
@@ -221,16 +323,14 @@ def run_simulation():
         'West': ['E3-2-1', 'E3-2-2']    # Hướng Tây
     }
     
-    # Các pha của đèn giao thông - ĐIỀU CHỈNH CHO PHA MẶC ĐỊNH 0-3
-    # Pha 0: N-S xanh, E-W đỏ
-    # Pha 1: N-S vàng, E-W đỏ
-    # Pha 2: N-S đỏ, E-W xanh
-    # Pha 3: N-S đỏ, E-W vàng
+    # Mapping phases cho program 8-phase adaptive_1
+    # Phase 0: N-S through+left, Phase 2: N-S left only
+    # Phase 4: E-W through+left, Phase 6: E-W left only
     direction_to_phase = {
         'North': 0, 
         'South': 0,
-        'East': 2, 
-        'West': 2
+        'East': 4, 
+        'West': 4
     }
     
     # Theo dõi số liệu theo thời gian
@@ -239,7 +339,7 @@ def run_simulation():
     phase_duration = 0
     cooldown_timer = 0
     
-    # Dữ liệu cho trực quan hóa - KHỞI TẠO ĐÃ SỬA
+    # Dữ liệu cho trực quan hóa
     status_data = {'time': [], 'North': [], 'South': [], 'East': [], 'West': []}
     
     # Vòng lặp mô phỏng chính
@@ -298,9 +398,11 @@ def run_simulation():
                 # Đặt pha xanh tiếp theo
                 in_transition = False
                 current_phase = next_green_phase
-                traci.trafficlight.setPhase('E3', current_phase)
-                phase_duration = 0
-                cooldown_timer = COOLDOWN_PERIOD  # Thêm thời gian làm mát sau khi thay đổi pha
+                if safe_set_phase('E3', current_phase):
+                    phase_duration = 0
+                    cooldown_timer = COOLDOWN_PERIOD
+                else:
+                    print(f"Không thể chuyển sang phase {current_phase}")
                 
                 # Cập nhật bộ đếm bước để tính đến wait_for_junction_clearing
                 step += wait_steps
@@ -327,12 +429,12 @@ def run_simulation():
                 if is_safe_to_change_phase(current_detectors):
                     # Bắt đầu chuyển sang pha vàng
                     in_transition = True
-                    if current_phase == 0:
-                        traci.trafficlight.setPhase('E3', 1)  # N-S vàng
-                        next_green_phase = 2  # Mục tiêu sẽ là E-W xanh
-                    else:
-                        traci.trafficlight.setPhase('E3', 3)  # E-W vàng
-                        next_green_phase = 0  # Mục tiêu sẽ là N-S xanh
+                    if current_phase == 0:  # N-S phases
+                        if safe_set_phase('E3', 1):  # N-S yellow
+                            next_green_phase = 4  # Mục tiêu sẽ là E-W phases
+                    elif current_phase == 4:  # E-W phases  
+                        if safe_set_phase('E3', 5):  # E-W yellow
+                            next_green_phase = 0  # Mục tiêu sẽ là N-S phases
                     phase_duration = 0
                 
             # Bắt buộc chuyển đổi nếu đã đạt thời gian xanh tối đa
@@ -341,12 +443,12 @@ def run_simulation():
                 if is_safe_to_change_phase(current_detectors):
                     # Bắt đầu chuyển sang pha vàng
                     in_transition = True
-                    if current_phase == 0:
-                        traci.trafficlight.setPhase('E3', 1)  # N-S vàng
-                        next_green_phase = 2  # Mục tiêu sẽ là E-W xanh
-                    else:
-                        traci.trafficlight.setPhase('E3', 3)  # E-W vàng
-                        next_green_phase = 0  # Mục tiêu sẽ là N-S xanh
+                    if current_phase == 0:  # N-S phases
+                        if safe_set_phase('E3', 1):  # N-S yellow
+                            next_green_phase = 4  # Mục tiêu sẽ là E-W phases
+                    elif current_phase == 4:  # E-W phases
+                        if safe_set_phase('E3', 5):  # E-W yellow
+                            next_green_phase = 0  # Mục tiêu sẽ là N-S phases
                     phase_duration = 0
                 else:
                     # Nếu không an toàn, kéo dài thêm một chút và kiểm tra lại
@@ -355,6 +457,7 @@ def run_simulation():
         # In trạng thái mỗi 30 giây
         if step % 300 == 0:
             print(f"Thời gian: {step / 10} giây")
+            print(f"Phase hiện tại: {current_phase}")
             for direction, data in all_metrics.items():
                 direction_name = {'North': 'Bắc', 'South': 'Nam', 'East': 'Đông', 'West': 'Tây'}[direction]
                 status = "TỐT" if data['is_good'] else "XẤU"
