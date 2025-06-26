@@ -1,20 +1,62 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- generated on 2025-06-24 16:04:28 by Eclipse SUMO netedit Version 1.22.0
+<!-- generated on 2025-06-26 14:46:01 by Eclipse SUMO netedit Version 1.22.0
 -->
 
 <routes xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/routes_file.xsd">
+    <!-- VTypes -->
+    <vType id="aggressive_car" length="4.50" maxSpeed="55.00" color="red" accel="3.0" decel="5.0" sigma="0.3"/>
+    <vType id="car" length="5.00" maxSpeed="50.00" accel="2.6" decel="4.5" sigma="0.5"/>
+    <vType id="normal_car" length="5.00" maxSpeed="50.00" color="yellow" accel="2.6" decel="4.5" sigma="0.5"/>
+    <vType id="slow_car" length="5.50" maxSpeed="40.00" color="blue" accel="2.0" decel="3.5" sigma="0.7"/>
+    <vType id="truck" length="12.00" maxSpeed="40.00" color="grey" accel="1.8" decel="3.5" sigma="0.3"/>
     <!-- Vehicles, persons and containers (sorted by depart) -->
-    <flow id="f_0" begin="0.00" from="E1-3" to="E2-3" end="3600.00" vehsPerHour="1800"/>
-    <flow id="f_1" begin="0.00" from="E1-3" to="E3-5" end="3600.00" vehsPerHour="1800"/>
-    <flow id="f_10" begin="0.00" from="E3-4" to="E3-1" end="3600.00" vehsPerHour="1800"/>
-    <flow id="f_11" begin="0.00" from="E3-4" to="E3-5" end="3600.00" vehsPerHour="1800"/>
-    <flow id="f_2" begin="0.00" from="E1-3" to="E4-3" end="3600.00" vehsPerHour="1800"/>
-    <flow id="f_3" begin="0.00" from="E3-2" to="E3-1" end="3600.00" vehsPerHour="1800"/>
-    <flow id="f_4" begin="0.00" from="E3-2" to="E4-3" end="3600.00" vehsPerHour="1800"/>
-    <flow id="f_5" begin="0.00" from="E3-2" to="E3-5" end="3600.00" vehsPerHour="1800"/>
-    <flow id="f_6" begin="0.00" from="E5-3" to="E2-3" end="3600.00" vehsPerHour="1800"/>
-    <flow id="f_7" begin="0.00" from="E5-3" to="E3-1" end="3600.00" vehsPerHour="1800"/>
-    <flow id="f_8" begin="0.00" from="E5-3" to="E4-3" end="3600.00" vehsPerHour="1800"/>
-    <flow id="f_9" begin="0.00" from="E3-4" to="E2-3" end="3600.00" vehsPerHour="1800"/>
+    <flow id="f_0" begin="0.00" from="E1-3" to="E3-5" end="500.00" vehsPerHour="250"/>
+    <flow id="f_1" begin="0.00" from="E1-3" to="E2-3" end="500.00" vehsPerHour="250"/>
+    <flow id="f_10" begin="0.00" from="E3-2" to="E4-3" end="500.00" vehsPerHour="250"/>
+    <flow id="f_11" begin="0.00" from="E3-2" to="E3-5" end="500.00" vehsPerHour="250"/>
+    <flow id="f_2" begin="0.00" from="E1-3" to="E4-3" end="500.00" vehsPerHour="250"/>
+    <flow id="f_3" begin="0.00" from="E3-4" to="E3-1" end="500.00" vehsPerHour="250"/>
+    <flow id="f_4" begin="0.00" from="E3-4" to="E2-3" end="500.00" vehsPerHour="250"/>
+    <flow id="f_5" begin="0.00" from="E3-4" to="E3-5" end="500.00" vehsPerHour="250"/>
+    <flow id="f_6" begin="0.00" from="E5-3" to="E2-3" end="500.00" vehsPerHour="250"/>
+    <flow id="f_7" begin="0.00" from="E5-3" to="E4-3" end="500.00" vehsPerHour="250"/>
+    <flow id="f_8" begin="0.00" from="E5-3" to="E3-1" end="500.00" vehsPerHour="250"/>
+    <flow id="f_9" begin="0.00" from="E3-2" to="E3-1" end="500.00" vehsPerHour="250"/>
+    <flow id="f_12" begin="500.00" from="E1-3" to="E2-3" end="1500.00" vehsPerHour="1500"/>
+    <flow id="f_13" begin="500.00" from="E1-3" to="E4-3" end="1500.00" vehsPerHour="1500"/>
+    <flow id="f_14" begin="500.00" from="E1-3" to="E3-5" end="1500.00" vehsPerHour="1500"/>
+    <flow id="f_15" begin="500.00" from="E5-3" to="E2-3" end="1500.00" vehsPerHour="1500"/>
+    <flow id="f_16" begin="500.00" from="E5-3" to="E4-3" end="1500.00" vehsPerHour="1500"/>
+    <flow id="f_17" begin="500.00" from="E5-3" to="E3-1" end="1500.00" vehsPerHour="1500"/>
+    <flow id="f_18" begin="500.00" from="E3-2" to="E4-3" end="1500.00" vehsPerHour="250"/>
+    <flow id="f_19" begin="500.00" from="E3-2" to="E3-1" end="1500.00" vehsPerHour="250"/>
+    <flow id="f_20" begin="500.00" from="E3-2" to="E3-5" end="1500.00" vehsPerHour="250"/>
+    <flow id="f_21" begin="500.00" from="E3-4" to="E3-1" end="1500.00" vehsPerHour="250"/>
+    <flow id="f_22" begin="500.00" from="E3-4" to="E2-3" end="1500.00" vehsPerHour="250"/>
+    <flow id="f_23" begin="500.00" from="E3-4" to="E3-5" end="1500.00" vehsPerHour="250"/>
+    <flow id="f_24" begin="1500.00" from="E3-2" to="E3-1" end="2500.00" vehsPerHour="1500"/>
+    <flow id="f_25" begin="1500.00" from="E3-2" to="E4-3" end="2500.00" vehsPerHour="1500"/>
+    <flow id="f_26" begin="1500.00" from="E3-2" to="E3-5" end="2500.00" vehsPerHour="1500"/>
+    <flow id="f_27" begin="1500.00" from="E3-4" to="E3-1" end="2500.00" vehsPerHour="1500"/>
+    <flow id="f_28" begin="1500.00" from="E3-4" to="E2-3" end="2500.00" vehsPerHour="1500"/>
+    <flow id="f_29" begin="1500.00" from="E3-4" to="E3-5" end="2500.00" vehsPerHour="1500"/>
+    <flow id="f_30" begin="1500.00" from="E1-3" to="E3-5" end="2500.00" vehsPerHour="250"/>
+    <flow id="f_31" begin="1500.00" from="E1-3" to="E2-3" end="2500.00" vehsPerHour="250"/>
+    <flow id="f_32" begin="1500.00" from="E1-3" to="E4-3" end="2500.00" vehsPerHour="250"/>
+    <flow id="f_33" begin="1500.00" from="E5-3" to="E4-3" end="2500.00" vehsPerHour="250"/>
+    <flow id="f_34" begin="1500.00" from="E5-3" to="E3-1" end="2500.00" vehsPerHour="250"/>
+    <flow id="f_35" begin="1500.00" from="E5-3" to="E2-3" end="2500.00" vehsPerHour="250"/>
+    <flow id="f_36" begin="2500.00" from="E1-3" to="E2-3" end="4000.00" vehsPerHour="1500"/>
+    <flow id="f_37" begin="2500.00" from="E1-3" to="E4-3" end="4000.00" vehsPerHour="1500"/>
+    <flow id="f_38" begin="2500.00" from="E1-3" to="E3-5" end="4000.00" vehsPerHour="1500"/>
+    <flow id="f_39" begin="2500.00" from="E3-2" to="E3-1" end="4000.00" vehsPerHour="1500"/>
+    <flow id="f_40" begin="2500.00" from="E3-2" to="E4-3" end="4000.00" vehsPerHour="1500"/>
+    <flow id="f_41" begin="2500.00" from="E3-2" to="E3-5" end="4000.00" vehsPerHour="1500"/>
+    <flow id="f_42" begin="2500.00" from="E5-3" to="E2-3" end="4000.00" vehsPerHour="1500"/>
+    <flow id="f_43" begin="2500.00" from="E5-3" to="E3-1" end="4000.00" vehsPerHour="1500"/>
+    <flow id="f_44" begin="2500.00" from="E5-3" to="E4-3" end="4000.00" vehsPerHour="1500"/>
+    <flow id="f_45" begin="2500.00" from="E3-4" to="E3-1" end="4000.00" vehsPerHour="1500"/>
+    <flow id="f_46" begin="2500.00" from="E3-4" to="E2-3" end="4000.00" vehsPerHour="1500"/>
+    <flow id="f_47" begin="2500.00" from="E3-4" to="E3-5" end="4000.00" vehsPerHour="1500"/>
 </routes>
