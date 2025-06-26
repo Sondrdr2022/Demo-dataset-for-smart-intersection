@@ -15,16 +15,16 @@ else:
 
 # Cấu hình với hệ thống scoring mới và lane-specific control
 MIN_GREEN_TIME = 40  # Thời gian xanh tối thiểu
-MAX_GREEN_TIME = 110   # Thời gian xanh tối đa
-EVAL_INTERVAL = 8     # Đánh giá điều kiện giao thông mỗi bao lâu
-YELLOW_TIME = 5       # Thời gian đèn vàng
-COOLDOWN_PERIOD = 3   # Thời gian làm mát sau khi thay đổi pha
+MAX_GREEN_TIME = 150   # Thời gian xanh tối đa
+EVAL_INTERVAL = 5     # Đánh giá điều kiện giao thông mỗi bao lâu
+YELLOW_TIME = 10       # Thời gian đèn vàng
+COOLDOWN_PERIOD = 2   # Thời gian làm mát sau khi thay đổi pha
 
 # Trọng số cho Lane Score equation: Lane_Score = w1·Q + w2·W + w3·D + w4·F
 LANE_SCORE_WEIGHTS = {
-    'w1': 0.35,  # Trọng số cho hàng đợi (Q)
-    'w2': 0.40,  # Trọng số cho thời gian chờ (W)
-    'w3': 0.15,  # Trọng số cho mật độ (D)
+    'w1': 0.40,  # Trọng số cho hàng đợi (Q)
+    'w2': 0.20,  # Trọng số cho thời gian chờ (W)
+    'w3': 0.30,  # Trọng số cho mật độ (D)
     'w4': 0.10   # Trọng số cho lưu lượng (F)
 }
 
@@ -41,7 +41,13 @@ EMERGENCY_THRESHOLD = 0.8 # Ngưỡng khẩn cấp
 def start_sumo():
     """Khởi động SUMO"""
     sumoBinary = os.path.join(os.environ['SUMO_HOME'], 'bin/sumo-gui')
-    sumoCmd = [sumoBinary, '-c', r"C:\Users\Admin\Downloads\sumo test\New folder\dataset.sumocfg", '--step-length', '0.1']
+    # Make sure to update this path to your actual .sumocfg file
+    sumo_config_path = r"C:\Users\Admin\Downloads\sumo test\New folder\dataset.sumocfg"
+    if not os.path.exists(sumo_config_path):
+        print(f"Lỗi: Không tìm thấy file cấu hình SUMO tại '{sumo_config_path}'")
+        print("Vui lòng cập nhật biến 'sumo_config_path' trong hàm start_sumo().")
+        sys.exit(1)
+    sumoCmd = [sumoBinary, '-c', sumo_config_path, '--step-length', '0.1']
     traci.start(sumoCmd)
 
 def setup_traffic_light_program():
@@ -196,8 +202,8 @@ def calculate_lane_score(metrics):
         return 0.0
     
     # Chuẩn hóa các tham số về thang điểm 0-1
-    Q_normalized = min(metrics['Q'] / 8.0, 1.0)        # 8 xe = 100%
-    W_normalized = min(metrics['W'] / 60.0, 1.0)       # 60 giây = 100%
+    Q_normalized = min((metrics['Q'] / 8.0)**2, 1.0)         # 8 xe = 100%
+    W_normalized = min((metrics['W'] / 60.0)**1.5, 1.0)      # 60 giây = 100%
     D_normalized = metrics['D']                         # Đã là 0-1
     F_normalized = min(metrics['F'] / 1800.0, 1.0)     # 1800 xe/giờ = 100%
     
@@ -347,7 +353,18 @@ def intelligent_global_decision(group_priorities, current_state_type, phase_dura
     # Map group back to state type
     group_to_state = {v: k for k, v in state_to_group.items()}
     
-    # Kiểm tra điều kiện chuyển đổi
+    # --- NEW: Logic to terminate green phase early if traffic has cleared ---
+    # This check runs before the MIN_GREEN_TIME check.
+    # It allows ending a green phase after a shorter duration (e.g., 15s) if its priority has become very low.
+    if phase_duration > 15 and current_priority < (DECISION_THRESHOLD * 0.3):
+        if best_priority > (current_priority + 0.1): # And another group needs service
+            should_change = True
+            next_state_type = group_to_state.get(best_group, current_state_type)
+            reason = f"Early termination: current priority ({current_priority:.3f}) is very low."
+            # Return immediately since we've made a decision
+            return should_change, next_state_type, reason, best_group, best_priority
+
+    # Kiểm tra điều kiện chuyển đổi (Original logic)
     if phase_duration >= MIN_GREEN_TIME:
         
         # Điều kiện 1: Priority khẩn cấp
@@ -378,7 +395,6 @@ def intelligent_global_decision(group_priorities, current_state_type, phase_dura
             reason = f"Current priority too low: {current_priority:.3f}"
     
     return should_change, next_state_type, reason, best_group, best_priority
-
 def safe_set_traffic_state(tl_id, state_type, states):
     """Đặt trạng thái traffic light một cách an toàn"""
     try:
@@ -418,9 +434,12 @@ def run_global_lane_simulation():
     phase_start_time = 0
     step = 0
     
-    # Dữ liệu tracking (simplified - no plotting)
+    # Dữ liệu tracking (MODIFIED to include direction_statuses for the new graph)
     tracking_data = {
         'time': [],
+        'direction_statuses': {
+            'North': [], 'South': [], 'East': [], 'West': []
+        },
         'group_priorities': {
             'all_straight_left': [],
             'all_straight_right': [], 
@@ -440,7 +459,7 @@ def run_global_lane_simulation():
     print("\n=== BẮT ĐẦU GLOBAL LANE-SPECIFIC SIMULATION ===")
     
     try:
-        while step < 15000:  # Chạy 25 phút
+        while step < 30000:  
             traci.simulationStep()
             current_time = step / 10.0
             phase_duration = current_time - phase_start_time
@@ -454,19 +473,29 @@ def run_global_lane_simulation():
                 # Tổng hợp global priorities
                 group_priorities = aggregate_global_lane_priorities(lane_analysis)
                 
+                # --- MODIFICATION START ---
                 # Lưu tracking data
                 tracking_data['time'].append(current_time)
+                
+                # Calculate and store status for each individual direction for the new graph
+                for direction, lanes_data in lane_analysis.items():
+                    lane_scores = [info['score'] for info in lanes_data.values()]
+                    status = calculate_direction_status(lane_scores)
+                    if direction in tracking_data['direction_statuses']:
+                        tracking_data['direction_statuses'][direction].append(status)
+
+                # Store other data for analysis and decision making
                 tracking_data['current_state'].append(current_state_type)
                 for group, priority in group_priorities.items():
                     tracking_data['group_priorities'][group].append(priority)
                 
-                # Lưu chi tiết lane analysis
                 tracking_data['lane_details'].append({
                     'time': current_time,
                     'analysis': lane_analysis,
                     'priorities': group_priorities
                 })
-                
+                # --- MODIFICATION END ---
+
                 # In thông tin chi tiết định kỳ
                 if step % 600 == 0:  # Mỗi 60 giây
                     print(f"\n--- 📊 GLOBAL LANE-SPECIFIC STATUS: {current_time:.1f}s ---")
@@ -499,18 +528,27 @@ def run_global_lane_simulation():
                 
                 # Thực hiện chuyển đổi state nếu cần
                 if should_change and next_state_type != current_state_type:
-                    # Chuyển qua yellow trước
-                    yellow_state = next_state_type.replace('_only', '_yellow').replace('_traditional', '_traditional_yellow')
-                    if yellow_state in states:
-                        safe_set_traffic_state('E3', yellow_state, states)
-                        print(f"🟡 YELLOW TRANSITION: {yellow_state}")
+                    # 1. Chuyển qua YELLOW cho pha hiện tại
+                    # NOTE: The yellow state should be based on the *current* state, not the next one.
+                    current_yellow_state_type = current_state_type.replace('_only', '_yellow').replace('_traditional', '_traditional_yellow')
+                    if current_yellow_state_type in states:
+                        safe_set_traffic_state('E3', current_yellow_state_type, states)
+                        print(f"🟡 YELLOW TRANSITION: from {current_state_type} to yellow")
                         
                         # Đợi yellow time
                         for _ in range(YELLOW_TIME * 10):
                             traci.simulationStep()
-                            step += 1
+                            # FIX: Do not increment step here
                     
-                    # Chuyển sang green state mới
+                    # 2. (NEW) Chuyển sang ALL-RED để dọn dẹp giao lộ
+                    all_red_clearance_time = 2  # Duration in seconds for the all-red phase
+                    safe_set_traffic_state('E3', 'all_red', states)
+                    print(f"🔴 ALL-RED CLEARANCE for {all_red_clearance_time} seconds.")
+                    for _ in range(all_red_clearance_time * 10):
+                        traci.simulationStep()
+                        # FIX: Do not increment step here
+
+                    # 3. Chuyển sang GREEN state mới
                     if safe_set_traffic_state('E3', next_state_type, states):
                         print(f"🔄 GLOBAL LANE CHANGE: {current_state_type} -> {next_state_type}")
                         print(f"   📋 Reason: {reason}")
@@ -550,300 +588,101 @@ def run_global_lane_simulation():
         print("\n=== 🏁 KẾT THÚC GLOBAL LANE-SPECIFIC SIMULATION ===")
         print(f"📊 Tổng số lần chuyển state: {len(tracking_data['state_changes'])}")
         
-        # Phân tích hiệu quả (text only - no graphs)
-        if tracking_data['state_changes']:
-            print("\n=== 📈 PHÂN TÍCH GLOBAL LANE CHANGES ===")
-            for change in tracking_data['state_changes']:
-                print(f"⏰ T={change['time']:.1f}s: {change['from']} -> {change['to']}")
-                print(f"   📝 {change['reason']}")
-                print(f"   🎯 Target group: {change['target_group']} (priority: {change['target_priority']:.3f})")
-        
         # Summary statistics
         print("\n=== 📊 SUMMARY STATISTICS ===")
         if tracking_data['time']:
             print(f"📈 Simulation Duration: {tracking_data['time'][-1]:.1f} seconds")
             print(f"🔄 Average Time Between Changes: {tracking_data['time'][-1] / max(len(tracking_data['state_changes']), 1):.1f} seconds")
             
-            # Count state type usage
-            state_usage = {}
-            for state in tracking_data['current_state']:
-                state_usage[state] = state_usage.get(state, 0) + 1
-            
-            print("🚦 State Usage Distribution:")
-            for state, count in state_usage.items():
-                percentage = (count / len(tracking_data['current_state'])) * 100
-                print(f"   {state}: {percentage:.1f}% ({count} intervals)")
-        
+        # Call the new plotting function if data was collected
         if tracking_data['time']:
-            plot_global_lane_analysis(tracking_data)
+            plot_congestion_graph(tracking_data)
         
         try:
             traci.close()
         except:
             pass
 
-def plot_global_lane_analysis(tracking_data):
-    """Enhanced visualization for global lane-specific analysis"""
+def plot_congestion_graph(tracking_data):
+    """
+    Vẽ biểu đồ Trạng Thái Giao Thông: Chỉ Số Tắc Nghẽn Theo Thời Gian.
+    This function is designed to replicate the style of the user-provided image.
+    """
     try:
-        fig, axes = plt.subplots(2, 2, figsize=(20, 16))
+        plt.style.use('default')
+        fig, ax = plt.subplots(figsize=(16, 8))
+
+        time = tracking_data['time']
+        statuses = tracking_data['direction_statuses']
         
-        # Biểu đồ 1: Group Priorities theo thời gian (Enhanced)
-        ax1 = axes[0, 0]
-        colors = ['blue', 'lightblue', 'red', 'pink']
-        labels = ['All Straight+Left', 'All Straight+Right', 'Traditional NS', 'Traditional EW']
+        # Plot data for each direction
+        ax.plot(time, statuses['North'], color='blue', linewidth=2, label='Hướng Bắc')
+        ax.plot(time, statuses['South'], color='green', linewidth=2, label='Hướng Nam')
+        ax.plot(time, statuses['East'], color='red', linewidth=2, label='Hướng Đông')
+        ax.plot(time, statuses['West'], color='orange', linewidth=2, label='Hướng Tây')
+
+        # Congestion threshold line
+        CONGESTION_THRESHOLD = 1.0
+        ax.axhline(y=CONGESTION_THRESHOLD, color='red', linestyle='--', linewidth=2.5, label=f'Ngưỡng Tắc Nghẽn ({CONGESTION_THRESHOLD:.1f})')
+
+        # Find the max value from all statuses to set a proper upper y-limit
+        max_y = 0
+        for direction in statuses:
+            if statuses[direction]:
+                max_y = max(max_y, max(statuses[direction]))
+        # Set y-axis limit with some padding, ensuring it's at least 3.0 like the image
+        ax.set_ylim(bottom=0, top=max(max_y * 1.1, 2.0))
+
+        # Shaded regions, using the y-limit we just set
+        ax.fill_between(time, CONGESTION_THRESHOLD, ax.get_ylim()[1], color='red', alpha=0.2, label='Vùng TẮC NGHẼN (Xấu)')
+        ax.fill_between(time, 0, CONGESTION_THRESHOLD, color='green', alpha=0.2, label='Vùng THÔNG THOÁNG (Tốt)')
         
-        for i, (group, color, label) in enumerate(zip(tracking_data['group_priorities'].keys(), colors, labels)):
-            if tracking_data['group_priorities'][group]:
-                ax1.plot(tracking_data['time'], tracking_data['group_priorities'][group], 
-                        label=label, color=color, linewidth=2.5)
+        # Titles and labels, styled to match the image
+        ax.set_title('Trạng Thái Giao Thông: Chỉ Số Tắc Nghẽn Theo Thời Gian\n(Thấp = Tốt, Cao = Tắc nghẽn)', fontsize=15)
+        ax.set_xlabel('Thời Gian (giây)', fontsize=12)
+        ax.set_ylabel('Chỉ Số Tắc Nghẽn', fontsize=12)
+
+        # X-axis limit
+        if time:
+            ax.set_xlim(left=0, right=max(time))
+
+        # Grid style
+        ax.grid(True, which='both', linestyle='-', linewidth=0.5, alpha=0.4)
+
+        # Explanation text box in the top-left
+        explanation_text = (
+            '  GIẢI THÍCH:\n'
+            ' • Đường dưới ngưỡng = Giao thông thông thoáng\n'
+            ' • Đường trên ngưỡng = Giao thông tắc nghẽn'
+        )
+        props = dict(boxstyle='round', facecolor='wheat', alpha=0.9, edgecolor='black', lw=0.5)
+        ax.text(0.015, 0.97, explanation_text, transform=ax.transAxes, fontsize=11,
+                verticalalignment='top', bbox=props)
+
+        # Create and order the legend to match the image
+        handles, labels = ax.get_legend_handles_labels()
+        # Desired order: 4 direction lines, threshold line, good zone, bad zone
+        try:
+            order = [labels.index('Hướng Bắc'), labels.index('Hướng Nam'), labels.index('Hướng Đông'), labels.index('Hướng Tây'), 
+                     labels.index(f'Ngưỡng Tắc Nghẽn ({CONGESTION_THRESHOLD:.1f})'), 
+                     labels.index('Vùng THÔNG THOÁNG (Tốt)'), labels.index('Vùng TẮC NGHẼN (Xấu)')]
+            ax.legend([handles[idx] for idx in order], [labels[idx] for idx in order], loc='lower right', fontsize=12)
+        except (ValueError, IndexError): # Fallback if a label isn't found
+            ax.legend(loc='lower right', fontsize=12)
+
+        plt.tight_layout(rect=[0, 0.01, 1, 0.97]) # Adjust layout to prevent elements from overlapping
         
-        # Enhanced threshold lines
-        ax1.axhline(y=DECISION_THRESHOLD, color='orange', linestyle='--', 
-                   linewidth=2, label=f'Decision Threshold ({DECISION_THRESHOLD})')
-        ax1.axhline(y=EMERGENCY_THRESHOLD, color='red', linestyle='--', 
-                   linewidth=2, label=f'Emergency Threshold ({EMERGENCY_THRESHOLD})')
-        
-        # Additional threshold line for preemptive action
-        PREEMPTIVE_THRESHOLD = 0.3
-        ax1.axhline(y=PREEMPTIVE_THRESHOLD, color='green', linestyle=':', 
-                   linewidth=1, label=f'Preemptive Threshold ({PREEMPTIVE_THRESHOLD})')
-        
-        # Enhanced fill areas
-        if tracking_data['time']:
-            max_priority = 1.0
-            if any(tracking_data['group_priorities'][group] for group in tracking_data['group_priorities']):
-                max_priority = max([max(tracking_data['group_priorities'][group]) 
-                                  for group in tracking_data['group_priorities'] 
-                                  if tracking_data['group_priorities'][group]])
-            
-            ax1.fill_between(tracking_data['time'], 0, PREEMPTIVE_THRESHOLD, 
-                            color='green', alpha=0.2, label='Excellent Zone')
-            ax1.fill_between(tracking_data['time'], PREEMPTIVE_THRESHOLD, DECISION_THRESHOLD, 
-                            color='yellow', alpha=0.2, label='Acceptable Zone')
-            ax1.fill_between(tracking_data['time'], DECISION_THRESHOLD, EMERGENCY_THRESHOLD, 
-                            color='orange', alpha=0.2, label='Warning Zone')
-            ax1.fill_between(tracking_data['time'], EMERGENCY_THRESHOLD, max_priority * 1.1, 
-                            color='red', alpha=0.2, label='Critical Zone')
-        
-        ax1.set_xlabel('Thời Gian (giây)', fontsize=12)
-        ax1.set_ylabel('Lane Group Priority', fontsize=12)
-        ax1.set_title('Global Lane-Specific Priority Analysis (Enhanced)', fontsize=14)
-        ax1.legend(fontsize=10, loc='upper right')
-        ax1.grid(True, alpha=0.3)
-        
-        # Biểu đồ 2: Enhanced State timeline with better visualization
-        ax2 = axes[0, 1]
-        if tracking_data['current_state']:
-            state_types = list(set(tracking_data['current_state']))
-            # Enhanced color mapping
-            state_color_map = {
-                'all_straight_left_only': '#2E8B57',      # Sea Green
-                'all_straight_right_only': '#4169E1',     # Royal Blue
-                'NS_traditional': '#FF6347',              # Tomato
-                'EW_traditional': '#FFD700',              # Gold
-                'all_red': '#DC143C'                      # Crimson
-            }
-            
-            # Add default colors for any unmapped states
-            default_colors = plt.cm.Set3(np.linspace(0, 1, len(state_types)))
-            for i, state in enumerate(state_types):
-                if state not in state_color_map:
-                    state_color_map[state] = default_colors[i]
-            
-            for i in range(len(tracking_data['time']) - 1):
-                duration = tracking_data['time'][i+1] - tracking_data['time'][i]
-                state = tracking_data['current_state'][i]
-                color = state_color_map.get(state, 'gray')
-                
-                ax2.barh(0, duration, left=tracking_data['time'][i], height=0.8, 
-                        color=color, alpha=0.8, edgecolor='black', linewidth=0.5)
-                
-                # Enhanced state labeling
-                if duration > 15:  # Only label if duration > 15s
-                    if 'straight_left' in state:
-                        short_name = 'SL Global'
-                    elif 'straight_right' in state:
-                        short_name = 'SR Global'
-                    elif 'NS_traditional' in state:
-                        short_name = 'NS Trad'
-                    elif 'EW_traditional' in state:
-                        short_name = 'EW Trad'
-                    else:
-                        short_name = state.replace('_', ' ')[:8]
-                        
-                    ax2.text(tracking_data['time'][i] + duration/2, 0, short_name, 
-                            ha='center', va='center', fontsize=9, fontweight='bold',
-                            bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.8))
-        
-        ax2.set_xlabel('Thời Gian (giây)', fontsize=12)
-        ax2.set_ylabel('Traffic Light States', fontsize=12)
-        ax2.set_title('Global Lane-Specific State Timeline', fontsize=14)
-        ax2.set_ylim(-0.5, 0.5)
-        ax2.grid(True, alpha=0.3)
-        
-        # Biểu đồ 3: Enhanced State change events with annotations
-        ax3 = axes[1, 0]
-        if tracking_data.get('state_changes'):
-            change_times = [change['time'] for change in tracking_data['state_changes']]
-            change_types = [change['to'] for change in tracking_data['state_changes']]
-            change_priorities = [change.get('target_priority', 0) for change in tracking_data['state_changes']]
-            
-            # Color code by priority level
-            colors = []
-            for priority in change_priorities:
-                if priority >= EMERGENCY_THRESHOLD:
-                    colors.append('red')
-                elif priority >= DECISION_THRESHOLD:
-                    colors.append('orange')
-                else:
-                    colors.append('blue')
-            
-            scatter = ax3.scatter(change_times, range(len(change_times)), 
-                       c=colors, s=120, alpha=0.7, marker='o', edgecolors='black')
-            
-            # Enhanced annotations
-            for i, (time, state_type, priority) in enumerate(zip(change_times, change_types, change_priorities)):
-                if 'straight_left' in state_type:
-                    short_name = 'SL Global'
-                elif 'straight_right' in state_type:
-                    short_name = 'SR Global'
-                elif 'NS_traditional' in state_type:
-                    short_name = 'NS Trad'
-                elif 'EW_traditional' in state_type:
-                    short_name = 'EW Trad'
-                else:
-                    short_name = state_type.replace('_only', '').replace('_', ' ')
-                
-                # Priority indicator
-                if priority >= EMERGENCY_THRESHOLD:
-                    priority_icon = '🚨'
-                elif priority >= DECISION_THRESHOLD:
-                    priority_icon = '⚠️'
-                else:
-                    priority_icon = '✅'
-                
-                annotation_text = f"{priority_icon} {short_name}\n({priority:.2f})"
-                
-                ax3.annotate(annotation_text, (time, i), xytext=(15, 0), 
-                           textcoords='offset points', fontsize=8, 
-                           bbox=dict(boxstyle='round,pad=0.4', facecolor='yellow', alpha=0.8),
-                           ha='left')
-        
-        ax3.set_xlabel('Thời Gian (giây)', fontsize=12)
-        ax3.set_ylabel('State Change Events', fontsize=12)
-        ax3.set_title('Global Lane-Specific State Changes (Priority Coded)', fontsize=14)
-        ax3.grid(True, alpha=0.3)
-        
-        # Biểu đồ 4: Enhanced statistics with performance metrics
-        ax4 = axes[1, 1]
-        if tracking_data['lane_details']:
-            # Enhanced statistics subplot
-            directions = ['North', 'South', 'East', 'West']
-            lane_types = ['straight_left', 'straight_right']
-            
-            # Calculate comprehensive statistics
-            avg_scores = np.zeros((len(directions), len(lane_types)))
-            max_scores = np.zeros((len(directions), len(lane_types)))
-            
-            for detail in tracking_data['lane_details']:
-                analysis = detail['analysis']
-                for i, direction in enumerate(directions):
-                    if direction in analysis:
-                        for j, lane_type in enumerate(lane_types):
-                            if lane_type in analysis[direction]:
-                                score = analysis[direction][lane_type]['score']
-                                avg_scores[i, j] += score
-                                max_scores[i, j] = max(max_scores[i, j], score)
-            
-            if len(tracking_data['lane_details']) > 0:
-                avg_scores /= len(tracking_data['lane_details'])
-            
-            # Create enhanced heatmap
-            im = ax4.imshow(avg_scores, cmap='RdYlGn_r', aspect='auto', vmin=0, vmax=1)
-            ax4.set_xticks(range(len(lane_types)))
-            ax4.set_xticklabels(['Straight+Left', 'Straight+Right'], fontsize=11)
-            ax4.set_yticks(range(len(directions)))
-            ax4.set_yticklabels(directions, fontsize=11)
-            ax4.set_title('Average Lane Performance Heatmap\n(Lower = Better)', fontsize=14)
-            
-            # Enhanced text annotations with performance indicators
-            for i in range(len(directions)):
-                for j in range(len(lane_types)):
-                    score = avg_scores[i, j]
-                    max_score = max_scores[i, j]
-                    
-                    # Performance indicator
-                    if score <= PREEMPTIVE_THRESHOLD:
-                        perf_icon = '✅'
-                        text_color = 'white'
-                    elif score <= DECISION_THRESHOLD:
-                        perf_icon = '🟡'
-                        text_color = 'black'
-                    else:
-                        perf_icon = '🔴'
-                        text_color = 'white'
-                    
-                    ax4.text(j, i, f'{perf_icon}\n{score:.2f}\n(Max: {max_score:.2f})', 
-                           ha="center", va="center", color=text_color, fontweight='bold',
-                           fontsize=9)
-            
-            # Add colorbar with custom labels
-            cbar = plt.colorbar(im, ax=ax4)
-            cbar.set_label('Performance Index (Lower = Better)', fontsize=11)
-            cbar.set_ticks([0, PREEMPTIVE_THRESHOLD, DECISION_THRESHOLD, EMERGENCY_THRESHOLD, 1.0])
-            cbar.set_ticklabels(['Excellent', 'Good', 'Warning', 'Critical', 'Severe'])
-        
-        plt.tight_layout()
-        
-        # Enhanced filename with timestamp
+        # Save and show the plot
         from datetime import datetime
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f'global_lane_analysis_enhanced_{timestamp}.png'
-        
-        plt.savefig(filename, dpi=150, bbox_inches='tight')
-        print(f"📊 Đã lưu biểu đồ phân tích global lane (enhanced): '{filename}'")
-        
-        # Additional summary plot if there are state changes
-        if tracking_data.get('state_changes'):
-            plt.figure(figsize=(12, 6))
-            
-            # State change frequency analysis
-            state_change_counts = {}
-            for change in tracking_data['state_changes']:
-                state = change['to']
-                state_change_counts[state] = state_change_counts.get(state, 0) + 1
-            
-            if state_change_counts:
-                states = list(state_change_counts.keys())
-                counts = list(state_change_counts.values())
-                
-                # Enhanced bar chart
-                bars = plt.bar(range(len(states)), counts, 
-                              color=['green' if 'straight_left' in s else 'blue' if 'straight_right' in s 
-                                    else 'red' if 'NS' in s else 'orange' for s in states],
-                              alpha=0.7, edgecolor='black')
-                
-                # Add value labels on bars
-                for bar, count in zip(bars, counts):
-                    plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.1, 
-                            str(count), ha='center', va='bottom', fontweight='bold')
-                
-                plt.xticks(range(len(states)), 
-                          [s.replace('_only', '').replace('_', '\n') for s in states], 
-                          rotation=45, ha='right')
-                plt.ylabel('Number of Activations', fontsize=12)
-                plt.title('State Activation Frequency Analysis', fontsize=14)
-                plt.grid(True, alpha=0.3, axis='y')
-                
-                plt.tight_layout()
-                summary_filename = f'state_frequency_analysis_{timestamp}.png'
-                plt.savefig(summary_filename, dpi=150, bbox_inches='tight')
-                print(f"📊 Đã lưu biểu đồ tần suất state: '{summary_filename}'")
+        filename = f'traffic_congestion_status_{timestamp}.png'
+        plt.savefig(filename, dpi=150)
+        print(f"📊 Đã lưu biểu đồ trạng thái tắc nghẽn: '{filename}'")
         
         plt.show()
-        
+
     except Exception as e:
-        print(f"❌ Lỗi khi vẽ biểu đồ: {e}")
+        print(f"❌ Lỗi khi vẽ biểu đồ tắc nghẽn: {e}")
         import traceback
         traceback.print_exc()
 
