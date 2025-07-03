@@ -1,0 +1,7 @@
+numpy>=1.21.0
+matplotlib>=3.5.0
+tensorflow>=2.8.0
+sumolib>=1.20.0
+traci>=1.20.0
+pandas>=1.3.0
+scikit-learn>=1.0.0
